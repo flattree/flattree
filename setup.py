@@ -24,6 +24,6 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
-        'TOPIC :: SOFTWARE DEVELOPMENT :: LIBRARIES :: PYTHON MODULES',
+        'Topic :: Software Development :: Libraries :: Python Modules'
     ],
 )
