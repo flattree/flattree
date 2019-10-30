@@ -15,7 +15,9 @@ For example, FlatTree is great when dealing with application configurations.
 
 There might be separate setting trees for various deployment environments,
 common or fallback values, with one trees shading the others.
-Developer may find it concise and flexible to use `cfg['SCFMT']`
-over `dev_cfg['stage']['cache']['format']` or even `cfg['stage.cache.format'] `
-with full power to get back branch `{'cache': {'format': '<format value>'}}`
-via simple `cfg['stage']` if needed.
+
+Developer may find it concise and flexible to use, for example,
+``cfg['SCFMT']`` over ``dev_cfg['stage']['cache']['format']`` or even
+``cfg['stage.cache.format']`` with full power to get back branch
+``{'cache': {'format': '<format value>'}}``
+via simple ``cfg['stage']`` if needed.
