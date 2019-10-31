@@ -2,36 +2,31 @@ from collections.abc import Mapping
 from . import SEPARATOR
 
 
-def is_dict(x):
-    """Checks if argument is a dictionary
-    Args:
-        x: object to check
-
-    Returns:
-        True if x is a dictionary, False otherwise
-    """
-    return x and isinstance(x, Mapping)
-
-
-def clean_key(x, separator=SEPARATOR):
+def fix_key(x, separator=SEPARATOR):
     """Handles special cases of None value or erroneous leading or trailing
-    separators in flattree keys.
+    separators in flat keys.
 
         Args:
             x (str): flat key
+            separator (str): symbol to separate components of a flat key
 
         Returns:
             Flat key, corrected if needed
+
         """
-    if x is None:
-        key = ''
+    key = '' if x is None else str(x)
+    if not isinstance(separator, str) or len(separator) == 0:
+        return key
     else:
-        key = str(x).strip(separator)
+        if key.startswith(separator):
+            key = fix_key(key[len(separator):], separator=separator)
+        elif key.endswith(separator):
+            key = fix_key(key[:-len(separator)], separator=separator)
     return key
 
 
 def delete_empty(x):
-    """Remove None values from a dictionary.
+    """Removes elements with None values from a dictionary.
 
     Args:
         x: dictionary
@@ -39,7 +34,7 @@ def delete_empty(x):
     Returns:
         Does not return a value. Operation is performed in place.
     """
-    if is_dict(x):
+    if isinstance(x, Mapping):
         keys = list(x.keys())
         for k in keys:
             if x[k] is None:

@@ -1,21 +1,24 @@
-import collections
+from collections.abc import Mapping
 from . import SEPARATOR
-from .common import is_dict, clean_key, delete_empty
-from .flatten import flatten, unflatten
+from .common import fix_key, delete_empty
+from .flatten import FlatTreeData, flatten, unflatten
 
 
-class FlatTree(collections.UserDict):
-    def __init__(self, *trees, root=None, aliases=None,
-                 separator=SEPARATOR, default=None):
-        self.separator = separator
-        self.default = default
+class FlatTree(FlatTreeData):
+    def __init__(self, *trees, root=None, separator=SEPARATOR,
+                 aliases=None, default=None, raise_on_key_error=False):
+        self.in_init = True
         self.aliases = {}
-        if is_dict(aliases):
-            self.update_aliases(aliases)
+        self.default = default
+        self.raise_on_key_error = raise_on_key_error
         if len(trees) == 0:
-            super().__init__({clean_key(root): None})
+            data = {fix_key(root, separator=separator): None}
         else:
-            super().__init__(flatten(*trees, root=root, separator=separator))
+            data = flatten(*trees, root=root, separator=separator)
+        super().__init__(data, separator=separator)
+        if isinstance(aliases, Mapping):
+            self.update_aliases(aliases)
+        self.in_init = False
 
     def update_aliases(self, aliases):
         new_aliases = {}
@@ -23,64 +26,67 @@ class FlatTree(collections.UserDict):
             if value is None:
                 new_aliases[key] = None
             else:
-                new_aliases[key] = clean_key(value)
+                new_aliases[key] = fix_key(value, separator=self.sep)
         self.aliases.update(new_aliases)
         delete_empty(self.aliases)
 
     def __missing__(self, key):
-        if self.is_valid_key(key):
-            cleaned_key = clean_key(key)
-            for try_key in (cleaned_key, self.aliases.get(cleaned_key, None)):
-                if try_key is not None:
-                    try:
-                        return unflatten(self.data, root=try_key,
-                                         separator=self.separator,
-                                         on_key_error=KeyError)
-                    except KeyError:
-                        pass
-        return self.default
-
-    def is_valid_key(self, key):
-        if key == '':
-            return True
-        cleaned_key = clean_key(key)
-        valid_leaf = cleaned_key in self.data
-        prefix = cleaned_key + self.separator
-        valid_branch = any(k.startswith(prefix) for k in self.data)
-        return valid_leaf or valid_branch
+        if self.raise_on_key_error:
+            raise KeyError(key)
+        else:
+            return self.get(key, self.default)
 
     def get(self, key, default=None):
-        if self.is_valid_key(key):
-            return self[key]
+        clean_key = fix_key(key, separator=self.sep)
+        alias_key = self.aliases.get(key, None)
+        value = default
+        if clean_key == '':
+            value = self.tree
         else:
-            return default
+            if alias_key is not None:
+                try_roots = (clean_key, alias_key)
+            else:
+                try_roots = (clean_key, )
+            for root in try_roots:
+                try:
+                    value = unflatten(self.data,
+                                      root=root,
+                                      separator=self.sep,
+                                      raise_on_key_error=True)
+                    break
+                except KeyError:
+                    continue
+        return value
 
     @property
     def tree(self):
-        return unflatten(self.data)
+        return unflatten(self.data, root='', separator=self.sep)
 
     @tree.setter
     def tree(self, value):
-        self.data = flatten(value, root='')
+        super().__init__(flatten(value, root='', separator=self.sep))
 
-"""
     def __delitem__(self, key):
-        if key in self.data:
-            super().__delitem__(key)
-        else:
-            for datakey in [k for k in self.data]:
-                if datakey.startswith(key):
-                    super().__delitem__(datakey)
-        return self
+        work_key = self.aliases.get(key, fix_key(key, separator=self.sep))
+        if not work_key == '':
+            if work_key in self.data:
+                super().__delitem__(work_key)
+            else:
+                for datakey in [k for k in self.data]:
+                    if datakey.startswith(work_key+self.sep):
+                        super().__delitem__(datakey)
+            return self
 
     def __setitem__(self, name, value):
-        if name in self.data and not is_dict(value):
+        if self.in_init:
             super().__setitem__(name, value)
         else:
-            prefix = _make_branch_prefix(name)
-            self.__delitem__(prefix)
-            current_tree = self.tree
-            self.data = {name: value}
-            added_tree = self.tree
-            self.data = flatten(added_tree, current_tree)
-"""
+            work_key = self.aliases.get(name, fix_key(name, separator=self.sep))
+            if work_key in self.data and not isinstance(value, Mapping):
+                super().__setitem__(work_key, value)
+            else:
+                self.__delitem__(work_key)
+                tree_before = self.tree
+                self.data = {work_key: value}
+                self.data = flatten(self.tree, tree_before,
+                                    root='', separator=self.sep)
