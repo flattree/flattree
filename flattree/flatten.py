@@ -1,31 +1,64 @@
 from collections.abc import Mapping
 from collections import ChainMap, UserDict
-from . import SEPARATOR
-from .common import fix_key
+from .common import fix_key, Failure
 
 
 class FlatTreeData(UserDict):
+    """Container for the flat tree data.
+
+    Used as a way to tell "flattened tree" data from regular trees.
+    Contains essential methods
+
+    Attributes:
+        data: dictionary of values indexed by flat keys
+        separator (str): symbol to separate components of a flat key
+
+    """
     def __init__(self, data, separator=None):
         self.sep = separator
         super().__init__(data)
 
     @property
     def tree(self):
+        """Regular tree dynamically recovered from the flat tree.
+
+        Returns: object representing regular tree
+
+        """
         return unflatten(self.data, root='', separator=self.sep)
 
     @tree.setter
     def tree(self, value):
         self.data = flatten(value, root='', separator=self.sep)
 
-    def update(self, other, *kw):
-        self.data = flatten(other, self.tree, root='', separator=self.sep)
+    def update(self, other=None, **kw):
+        """ Merges the ``other`` tree in.
+
+        Other tree has priority during merge.
+
+        Args:
+            other: tree to merge into existing data
+            **kw: tree in a form of key-value pairs
+
+        """
+        if len(kw):
+            data = {} if not isinstance(other, Mapping) else other.copy()
+            data.update(kw)
+        else:
+            data = other
+        self.data = flatten(data, self.tree, root='', separator=self.sep)
 
 
-def flatten(*trees, root=None, separator=SEPARATOR):
+def flatten(*trees, root=None, separator=None):
     """Merges trees and creates dictionary of leaves indexed by flat keys.
 
-    Flat keys are path-like strings with level keys joined by ``separator``:
-    e.g. 'level01.level02.level03.leaf'.
+    Flat keys are path-like strings with level keys joined by "separator":
+    e.g. 'level01.level02.level03.leaf' where dot is a separator.
+
+    The tree that comes earlier in ``*trees`` has priority during merge.
+
+    Instances of FlatTreeData (and subclasses including FlatTree) have their
+    trees recovered before merge is applied.
 
     Args:
         *trees: nested dictionaries to merge
@@ -40,7 +73,7 @@ def flatten(*trees, root=None, separator=SEPARATOR):
         Dictionary of leaves indexed by flat keys.
 
     """
-    if len(trees) == 0:
+    if not len(trees):
         return None
     separator = '' if separator is None else str(separator)
     data = {}
@@ -59,8 +92,8 @@ def flatten(*trees, root=None, separator=SEPARATOR):
     return data
 
 
-def unflatten(flatdata, root=None, separator=SEPARATOR,
-              default=None, raise_on_key_error=False):
+def unflatten(flatdata, root=None, separator=None,
+              default=None, raise_key_error=False):
     """Restores nested dictionaries from flat tree starting with root.
 
         Calling ``unflatten(flatten(x))`` should return ``x``
@@ -72,9 +105,9 @@ def unflatten(flatdata, root=None, separator=SEPARATOR,
             separator (str): symbol to separate components of a flat key
             default: default value
                 Returned in case no leaf or branch is found for the root,
-                and raise_on_key_error is False.
-            raise_on_key_error (bool): if True, raise exception instead of
-                returning default value
+                and raise_key_error is False.
+            raise_key_error (bool): if True, raise exception rather than
+                return the default value
 
         Returns:
             Dictionary or leaf value.
@@ -84,33 +117,41 @@ def unflatten(flatdata, root=None, separator=SEPARATOR,
     root = fix_key(root, separator=separator)
     if root in flatdata:
         return flatdata[root]
-    if root == '':
-        prefix = ''
-        stems = {k: k for k in flatdata}
-    else:
-        prefix = root + separator
-        plen = len(prefix)
-        stems = {k: k[plen:] for k in flatdata if k.startswith(prefix)}
-    if stems == {}:
-        if raise_on_key_error:
-            raise KeyError(root)
+    if separator == '':
+        if root == '':
+            tree = flatdata
+        else:
+            n = len(root)
+            rdata = {k[n:]: flatdata[k] for k in flatdata if k.startswith(root)}
+            tree = Failure(root) if rdata == {} else rdata
+    else:  # Let's grow a tree
+        if root == '':
+            prefix = ''
+            stems = {k: k for k in flatdata}
+        else:
+            prefix = root + separator
+            plen = len(prefix)
+            stems = {k: k[plen:] for k in flatdata if k.startswith(prefix)}
+        if stems == {}:
+            tree = Failure(root)
+        else:
+            tree = {}
+            leads = set()
+            for leaf, stem in stems.items():
+                if stem.count(separator) == 0:
+                    tree[stem] = flatdata[leaf]
+                else:
+                    leads.add(stem.split(separator)[0])
+            for lead in leads:
+                nextroot = prefix + lead
+                if nextroot in flatdata:
+                    subtree = flatdata[nextroot]
+                else:
+                    subtree = unflatten(flatdata, nextroot, separator=separator)
+                tree[lead] = subtree
+    if isinstance(tree, Failure):
+        if raise_key_error:
+            raise KeyError(tree.reason)
         else:
             tree = default
-    else:
-        tree = {}
-        leads = set()
-        for leaf, stem in stems.items():
-            if stem.count(separator) == 0:
-                tree[stem] = flatdata[leaf]
-            else:
-                try:
-                    leads.add(stem.split(separator)[0])
-                except ValueError:
-                    leads.add(stem)
-        for lead in leads:
-            nextroot = prefix + lead
-            if nextroot in flatdata:
-                tree[lead] = flatdata[nextroot]
-            else:
-                tree[lead] = unflatten(flatdata, nextroot, separator=separator)
     return tree

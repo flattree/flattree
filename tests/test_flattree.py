@@ -1,3 +1,4 @@
+import pytest
 from flattree import FlatTree
 
 sep = '/$/'
@@ -24,8 +25,9 @@ def test_flattree_weird_usage():
     assert ft[sep + 'one' + sep + 'two' + sep] == 0
     assert ft[sep + 'one' + sep + 'two'] is ft['one' + sep + 'two' + sep]
     ft = FlatTree(0, root='one' + sep + 'two', separator=None)
-    assert ft is not ft.tree
+    assert ft.data is ft.tree
     assert ft == ft.tree
+    assert ft['one' + sep]['two'] == 0
 
 
 def test_flattree_basics(configtree):
@@ -91,3 +93,13 @@ def test_flattree_aliases(configtree, configfallback):
     del prd_cfg['ONE']
     assert prd_cfg.tree == {'sequence': {'start': 0}}
 
+
+def test_flattree_default(configtree):
+    ft = FlatTree(configtree, separator=sep, default='No value')
+    assert ft['nonexistent'] == 'No value'
+
+
+def test_flattree_keyerror(configtree):
+    ft = FlatTree(configtree, separator=sep, raise_key_error=True)
+    with pytest.raises(KeyError, match=r"nonexistent"):
+        ft['nonexistent']

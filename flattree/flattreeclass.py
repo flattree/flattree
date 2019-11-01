@@ -5,13 +5,29 @@ from .flatten import FlatTreeData, flatten, unflatten
 
 
 class FlatTree(FlatTreeData):
+    """Main tool to work with nested dictionaries using "flat" keys.
+
+    Flat keys are path-like strings with level keys joined by "separator":
+    e.g. 'level01.level02.level03.leaf' where dot is a separator.
+
+    Attributes:
+        *trees: flat or regular trees to merge for initialization
+        root (str): flat key prefix (puts tree in branch rather than root)
+        separator (str): symbol to separate components of a flat key
+        aliases: dictionary in a form of {alias: flat_key}.
+            Aliases are flat key shortcuts.
+        default: value to return if key is not found during dictionary access
+             when raise_key_error is not set
+        raise_key_error: if True, raise exception rather than return ``default``
+
+    """
     def __init__(self, *trees, root=None, separator=SEPARATOR,
-                 aliases=None, default=None, raise_on_key_error=False):
+                 aliases=None, default=None, raise_key_error=False):
         self.in_init = True
         self.aliases = {}
         self.default = default
-        self.raise_on_key_error = raise_on_key_error
-        if len(trees) == 0:
+        self.raise_key_error = raise_key_error
+        if not len(trees):
             data = {fix_key(root, separator=separator): None}
         else:
             data = flatten(*trees, root=root, separator=separator)
@@ -21,6 +37,11 @@ class FlatTree(FlatTreeData):
         self.in_init = False
 
     def update_aliases(self, aliases):
+        """Updates alias dictionary, removing aliases with None value
+        Args:
+            aliases: new aliases
+
+        """
         new_aliases = {}
         for key, value in aliases.items():
             if value is None:
@@ -31,7 +52,7 @@ class FlatTree(FlatTreeData):
         delete_empty(self.aliases)
 
     def __missing__(self, key):
-        if self.raise_on_key_error:
+        if self.raise_key_error:
             raise KeyError(key)
         else:
             return self.get(key, self.default)
@@ -52,19 +73,11 @@ class FlatTree(FlatTreeData):
                     value = unflatten(self.data,
                                       root=root,
                                       separator=self.sep,
-                                      raise_on_key_error=True)
+                                      raise_key_error=True)
                     break
                 except KeyError:
                     continue
         return value
-
-    @property
-    def tree(self):
-        return unflatten(self.data, root='', separator=self.sep)
-
-    @tree.setter
-    def tree(self, value):
-        super().__init__(flatten(value, root='', separator=self.sep))
 
     def __delitem__(self, key):
         work_key = self.aliases.get(key, fix_key(key, separator=self.sep))

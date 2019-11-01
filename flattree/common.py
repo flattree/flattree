@@ -39,3 +39,10 @@ def delete_empty(x):
         for k in keys:
             if x[k] is None:
                 del x[k]
+
+
+class Failure:
+    reason = ''
+
+    def __init__(self, reason):
+        self.reason = reason
