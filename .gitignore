@@ -64,7 +64,8 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+docs/build/
+docs/source/api/
 
 # PyBuilder
 target/
@@ -104,3 +105,6 @@ venv.bak/
 .mypy_cache/
 /.idea/
 /sandbox/
+
+# Original versions of files
+*.orig
