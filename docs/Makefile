@@ -14,6 +14,7 @@ html:
 	@rm -rf $(APIDOC_OUTPUT)/*
 	@$(SPHINXAPIDOC) $(APIDOC_OPTS) -o "$(APIDOC_OUTPUT)" "$(APIDOC_MODULE)" $(APIDOC_EXCLUDE)
 	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	git add $(APIDOC_OUTPUT)
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
