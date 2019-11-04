@@ -7,8 +7,8 @@ from .flatten import FlatTreeData, flatten, unflatten
 class FlatTree(FlatTreeData):
     """Main tool to work with nested dictionaries using "flat" keys.
 
-    Flat keys are path-like strings with level keys joined by "separator":
-    e.g. 'level01.level02.level03.leaf' where dot is a separator.
+    Flat keys are path-like strings with level keys joined by "sep":
+    e.g. 'level01.level02.level03.leaf' where dot is a sep.
 
     Attributes:
         *trees: flat or regular trees to merge for initialization

@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from collections import ChainMap, UserDict
-from .common import fix_key, Failure
+from .common import Failure
 
 
 class FlatTreeData(UserDict):
@@ -52,8 +52,8 @@ class FlatTreeData(UserDict):
 def flatten(*trees, root=None, separator=None):
     """Merges trees and creates dictionary of leaves indexed by flat keys.
 
-    Flat keys are path-like strings with level keys joined by "separator":
-    e.g. 'level01.level02.level03.leaf' where dot is a separator.
+    Flat keys are path-like strings with level keys joined by "sep":
+    e.g. 'level01.level02.level03.leaf' where dot is a sep.
 
     The tree that comes earlier in ``*trees`` has priority during merge.
 
@@ -77,16 +77,24 @@ def flatten(*trees, root=None, separator=None):
         return None
     separator = '' if separator is None else str(separator)
     data = {}
-    prefix = fix_key(root, separator=separator)
+    #prefix = fix_key(root, sep=sep)
+    root = '' if root is None else str(root)
+    if root == '':
+        prefix = ''
+    else:
+        if root.startswith(separator):
+            root = root[len(separator):]
+        prefix = root + separator
     if not isinstance(trees[0], Mapping):
-        data = {prefix: trees[0]}
+        data = {root: trees[0]}
     else:
         noflat = (d.tree if isinstance(d, FlatTreeData) else d for d in trees)
         realtrees = [tree for tree in noflat if isinstance(tree, Mapping)]
         for lead in ChainMap(*realtrees):
             values = [tree[lead] for tree in realtrees if lead in tree]
+            nextroot = separator + prefix + lead
             subtree = flatten(*values,
-                              root=prefix+separator+lead,
+                              root=nextroot,
                               separator=separator)
             data.update(subtree)
     return data
@@ -114,7 +122,8 @@ def unflatten(flatdata, root=None, separator=None,
 
         """
     separator = '' if separator is None else str(separator)
-    root = fix_key(root, separator=separator)
+    root = '' if root is None else str(root)
+    #root = fix_key(root, sep=sep)
     if root in flatdata:
         return flatdata[root]
     if separator == '':
@@ -140,6 +149,11 @@ def unflatten(flatdata, root=None, separator=None,
             for leaf, stem in stems.items():
                 if stem.count(separator) == 0:
                     tree[stem] = flatdata[leaf]
+                elif stem.startswith(separator):
+                    if prefix == '':
+                        leads.add(separator)
+                    else:
+                        leads.add('')
                 else:
                     leads.add(stem.split(separator)[0])
             for lead in leads:
@@ -147,7 +161,8 @@ def unflatten(flatdata, root=None, separator=None,
                 if nextroot in flatdata:
                     subtree = flatdata[nextroot]
                 else:
-                    subtree = unflatten(flatdata, nextroot, separator=separator)
+                    subtree = unflatten(flatdata, nextroot,
+                                        separator=separator)
                 tree[lead] = subtree
     if isinstance(tree, Failure):
         if raise_key_error:

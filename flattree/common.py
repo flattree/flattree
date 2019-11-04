@@ -3,26 +3,7 @@ from . import SEPARATOR
 
 
 def fix_key(x, separator=SEPARATOR):
-    """Handles special cases of None value or erroneous leading or trailing
-    separators in flat keys.
-
-        Args:
-            x (str): flat key
-            separator (str): symbol to separate components of a flat key
-
-        Returns:
-            Flat key, corrected if needed
-
-        """
-    key = '' if x is None else str(x)
-    if not isinstance(separator, str) or len(separator) == 0:
-        return key
-    else:
-        if key.startswith(separator):
-            key = fix_key(key[len(separator):], separator=separator)
-        elif key.endswith(separator):
-            key = fix_key(key[:-len(separator)], separator=separator)
-    return key
+    return(x)
 
 
 def delete_empty(x):
