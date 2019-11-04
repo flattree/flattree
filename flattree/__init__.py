@@ -9,7 +9,8 @@ __author__ = 'Aleksandr Mikhailov'
 __author_email__ = 'dev@avidclam.com'
 __copyright__ = '2019 Aleksandr Mikhailov'
 
-SEPARATOR = '.'
+SEP = '.'
+ESC = '\\'
 
-from .flatten import FlatTreeData, flatten, unflatten
+from .core import FlatTreeData, flatten, unflatten
 from .flattreeclass import FlatTree
