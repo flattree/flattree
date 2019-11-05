@@ -3,11 +3,10 @@ FlatTree
 
 FlatTree is a lightweight tool that implements basic operations
 on nested Python dictionaries, "trees".
-
 It allows to
 
 - merge trees into single tree
-- access leaf nodes and branches using path-like "flat" keys
+- access leaf nodes or branches using path-like "flat" keys
 - use aliases for keys
 - assign to or delete leaves or branches
 
@@ -17,8 +16,10 @@ Usage example
 -------------
 
 FlatTree is quite useful when working with application configurations.
-Consider an application module that stores temporary objects in a file system cache.
-While in development, it's convenient to store objects in JSON format for its human-readable nature. In production, objects are saved as pickles for performance.
+Consider an application module that stores temporary objects in a file system
+cache. While in development, it's convenient to store objects in JSON format
+because of its human-readable nature.
+In production, objects are saved as pickles for performance.
 
 Use FlatTree to merge configurations as needed:
 
@@ -33,10 +34,11 @@ Use FlatTree to merge configurations as needed:
     >>> cfg['processor.cache.folder']
     '.cache'
     >>> cfg.update_aliases({'FMT': 'processor.cache.format'})
-    >>> cfg['FMT']  # Access with alias
+    >>> cfg['FMT']  # Access with an alias
     'json'
 
-It's possible to update leaves and branches. For example, consider adding logging configuration:
+It's possible to update leaves and branches.
+For example, consider adding logging configuration:
 
 .. code-block:: python
 
@@ -89,5 +91,6 @@ Indices and tables
 Closing remarks
 ---------------
 
-Author is aware that this kind of functionality has already been implemented a number of times elsewhere.
+Author is aware that this kind of functionality has already been implemented
+a number of times elsewhere.
 However, reinventing the wheel seemed a useful practice.
