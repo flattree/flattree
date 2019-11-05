@@ -1,3 +1,8 @@
+.. image:: https://travis-ci.org/flattree/flattree.svg?branch=master
+    :target: https://travis-ci.org/flattree/flattree
+.. image:: https://readthedocs.org/projects/flattree/badge/?version=latest
+    :target: https://flattree.readthedocs.io/en/latest/?badge=latest
+
 FlatTree
 ========
 
