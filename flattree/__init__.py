@@ -13,4 +13,4 @@ SEP = '.'
 ESC = '\\'
 
 from .core import FlatTreeData, flatten, unflatten
-from .flattreeclass import FlatTree
+from .mainclass import FlatTree

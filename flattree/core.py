@@ -10,7 +10,8 @@ class FlatTreeData(UserDict):
 
     Attributes:
         data: dictionary of values indexed by flat keys
-        separator (str): symbol to separate components of a flat key
+        sep (str): symbol to use when joining key components
+        esc (str): symbol to escape sep in key components
 
     """
 
@@ -137,7 +138,7 @@ def flatten(*trees, root, sep, esc):
 
     """
     if not trees:
-        return None
+        trees = [None]
     flattree = {}
     rootlist = flatkey_to_keylist(root, sep=sep, esc=esc)
     noflat = (d.tree if isinstance(d, FlatTreeData) else d for d in trees)

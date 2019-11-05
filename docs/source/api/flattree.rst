@@ -10,5 +10,5 @@ Submodules
 .. toctree::
 
    flattree.common
-   flattree.flatten
-   flattree.flattreeclass
+   flattree.core
+   flattree.mainclass

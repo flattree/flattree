@@ -12,7 +12,8 @@ class FlatTree(FlatTreeData):
     Attributes:
         *trees: flat or regular trees to merge for initialization
         root (str): flat key prefix (puts tree in branch rather than root)
-        separator (str): symbol to separate components of a flat key
+        sep (str): symbol to use when joining key components
+        esc (str): symbol to escape sep in key components
         aliases: dictionary in a form of {alias: flat_key}.
             Aliases are flat key shortcuts.
         default: value to return if key is not found during dictionary access
@@ -23,20 +24,14 @@ class FlatTree(FlatTreeData):
 
     def __init__(self, *trees, root=None, sep=None, esc=None,
                  aliases=None, default=None, raise_key_error=False):
-        self.in_init = True
-        self.aliases = {}
         self.sep = SEP if sep is None else str(sep)
         self.esc = ESC if esc is None else str(esc)
+        self.aliases = {}
         self.default = default
         self.raise_key_error = raise_key_error
-        if not trees:
-            data = {root: None}
-        else:
-            data = flatten(*trees, root=root, sep=sep, esc=esc)
-        super().__init__(data, sep=sep, esc=esc)
-        if isinstance(aliases, Mapping):
+        self.data = flatten(*trees, root=root, sep=self.sep, esc=self.esc)
+        if aliases:
             self.update_aliases(aliases)
-        self.in_init = False
 
     def update_aliases(self, aliases):
         """Updates alias dictionary, removing aliases with None value
@@ -47,7 +42,8 @@ class FlatTree(FlatTreeData):
         if isinstance(aliases, Mapping):
             for key, value in aliases.items():
                 if value is None:
-                    del self.aliases[key]
+                    if key in self.aliases:
+                        del self.aliases[key]
                 else:
                     self.aliases[key] = value
 
@@ -81,26 +77,20 @@ class FlatTree(FlatTreeData):
 
     def __delitem__(self, key):
         work_key = self.aliases.get(key, key)
-        if work_key is not None:
-            if work_key in self.data:
-                super().__delitem__(work_key)
-            else:
-                for datakey in [k for k in self.data]:
-                    if datakey.startswith(work_key + self.sep):
-                        super().__delitem__(datakey)
-            # TODO: Check return value
-            return self
+        if work_key in self.data:
+            super().__delitem__(work_key)
+        else:
+            for datakey in [k for k in self.data]:
+                if datakey.startswith(work_key + self.sep):
+                    super().__delitem__(datakey)
 
     def __setitem__(self, name, value):
-        if self.in_init:
-            super().__setitem__(name, value)
+        work_key = self.aliases.get(name, name)
+        if work_key in self.data and not isinstance(value, Mapping):
+            super().__setitem__(work_key, value)
         else:
-            work_key = self.aliases.get(name, name)
-            if work_key in self.data and not isinstance(value, Mapping):
-                super().__setitem__(work_key, value)
-            else:
-                self.__delitem__(work_key)
-                tree_before = self.tree
-                self.data = {work_key: value}
-                self.data = flatten(self.tree, tree_before,
-                                    root=None, sep=self.sep, esc=self.esc)
+            self.__delitem__(work_key)
+            tree_before = self.tree
+            self.data = {work_key: value}
+            self.data = flatten(self.tree, tree_before,
+                                root=None, sep=self.sep, esc=self.esc)

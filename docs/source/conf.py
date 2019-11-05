@@ -33,10 +33,8 @@ release = flattree.__version__
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.todo',
+    'sphinx.ext.napoleon'
 ]
-todo_include_todos = True
 
 
 # Add any paths that contain templates here, relative to this directory.
