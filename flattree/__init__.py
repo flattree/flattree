@@ -14,3 +14,4 @@ ESC = '\\'
 
 from .core import FlatTreeData, flatten, unflatten
 from .mainclass import FlatTree
+__all__ = ['FlatTree']
