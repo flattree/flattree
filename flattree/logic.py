@@ -4,6 +4,7 @@ import re
 
 _BS = '\\'
 SELR = ('.', _BS, '\u23A1', '\u23A6')
+#SELR = ('.', '\\', '[', ']')
 
 
 def genleaves(*trees, prepend=None, selr=SELR):
@@ -19,6 +20,8 @@ def genleaves(*trees, prepend=None, selr=SELR):
         Example: ('my.branch.x', 0)
 
     """
+    if not trees:
+        trees = [None]
     sep, esc, lb, rb = selr
     if prepend is None:
         prepend = []
@@ -28,11 +31,9 @@ def genleaves(*trees, prepend=None, selr=SELR):
     lead_tree = trees[0]
     if isinstance(lead_tree, MutableSequence):  # a list
         for i, el in enumerate(lead_tree):
-            prelist = prepend.copy()
-            if not prelist:
-                prelist = ['']
-            prelist[-1] = prelist[-1] + lb + str(i) + rb
-            yield from genleaves(el, prepend=prelist, selr=selr)
+            yield from genleaves(el,
+                                 prepend=prepend + [lb + str(i) + rb],
+                                 selr=selr)
     elif not isinstance(lead_tree, Mapping):  # not a dictionary, assume scalar
         yield prefix, lead_tree
     else:
@@ -43,33 +44,87 @@ def genleaves(*trees, prepend=None, selr=SELR):
 
 
 def flatkey_to_keylist(flatkey, selr=SELR):
-    """Converts flatkey string to a list of key components
+    """Converts flatkey to a list of key components, extracts list indices
+
+    Components that look like '[1000]' where a number is found between
+        the Left Bracket and the Right Bracket are converted to integers,
+        int("1000") in this example.
 
     Args:
         flatkey (str): flatkey string
         selr: tuple of Separator, Escape, Left Bracket, Right Bracket symbols
 
     Returns:
-        str: "flat" key
+        list: key components, int if
 
     """
     if flatkey is None:
         return []
     sep, esc, lb, rb = selr
+    if not sep:
+        return [flatkey]
+    flatk = flatkey
+    if esc:
+        flatk = flatk.replace('\r', '')
+        flatk = flatk.replace(esc + sep, '\r')
+    keylist = flatk.split(sep)
+    result = []
+    for key in keylist:
+        if esc:
+            key = key.replace('\r', sep)
+        if key.startswith(lb) and key.endswith(rb):
+            try:
+                key = int(key[len(lb):-len(rb)])
+            except (IndexError, ValueError):
+                pass
+        result.append(key)
+    return result
+
+
+def keylist_to_flatkey(keylist, selr=SELR):
+    """Converts list of key components to a flatkey string
+
+    Integer key components are considered list indices and get converted.
+
+    Args:
+        keylist (list): list of key components
+        selr: tuple of Separator, Escape, Left Bracket, Right Bracket symbols
+
+    Returns:
+        str: flatkey string
+
+    """
+    if keylist is None:
+        return None
+    sep, esc, lb, rb = selr
+    keylist = [lb + str(k) + rb if isinstance(k, int) else k for k in keylist]
     if esc and sep:
-        flatkey = flatkey.replace('\r', '')
-        flatkey = flatkey.replace(esc + sep, '\r')
-    keylist = flatkey.split(sep) if sep else [flatkey]
-    return [x.replace('\r', sep) for x in keylist] if esc and sep else keylist
+        esep = esc + sep
+        keylist = [k.replace(sep, esep) for k in keylist if isinstance(k, str)]
+    return sep.join(keylist) if keylist else None
 
 
-def unflatten(flatdata, branch=None, selr=SELR,
+def tree_with_lists(tree):
+    if not isinstance(tree, Mapping):
+        return tree
+    sparse = {k: v for k, v in tree.items() if isinstance(k, int)}
+    if sparse:
+        result = [None] * (max(sparse.keys()) + 1)
+        for k in sparse:
+            result[k] = sparse[k]
+    else:
+        result = {k:tree_with_lists(tree[k]) for k in tree}
+    return result
+
+
+def unflatten(flatdata, top=None, selr=SELR,
               default=None, raise_key_error=False):
     """Restores nested dictionaries from a flat tree starting with a branch.
 
     Args:
         flatdata (dict): dictionary of values indexed by flatkeys
-        branch: substring of branch to restore (None for the whole tree)
+        top: list of key components that constitute a branch to unflatten
+            (None for the whole tree)
         selr (tuple): Separator, Escape, Left Bracket, Right Bracket symbols
         default: default value
             Returned in case no branch is found and raise_key_error is False.
@@ -80,69 +135,36 @@ def unflatten(flatdata, branch=None, selr=SELR,
         Tree or leaf value or default.
 
     """
-    branch = str(branch) if branch is not None else None
-    if branch in flatdata:  # we've hit the leaf
-        return flatdata[branch]
+    # First check if we can hit the leaf
+    topfk = keylist_to_flatkey(top, selr=selr)
+    if topfk in flatdata:
+        return flatdata[topfk]
     # flabra: flat branch, a flat subtree of a flat tree, let's build it
     sep, esc, lb, rb = selr
-    build_list = False  # lists are legit part of trees (since v2)
-    if branch is None:
+    if topfk is None:
         flabra = flatdata  # the whole tree
-        if any(flatkey.startswith(lb) for flatkey in flabra):
-            build_list = True
     else:
-        flabra = {}
-        for flatkey, value in flatdata.items():
-            if flatkey.startswith(branch + sep):
-                flabra[flatkey[len(branch)+1:]] = value
-            elif flatkey.startswith(branch + lb):
-                build_list = True
-                flabra[flatkey[len(branch):]] = value
+        flabra = {key[len(topfk + sep):]: value
+                  for key, value in flatdata.items()
+                  if key.startswith(topfk + sep)}
     # Check if flat branch is not empty, otherwise return default of raise error
     if not flabra:
         if raise_key_error:
-            raise KeyError(branch)
+            raise KeyError(topfk)
         else:
             return default
     # Now build a tree
-    if build_list:
-        # first, let's build an intermediate "sparse list"
-        sparse = {}
-        for flatkey, value in flabra.items():
-            if flatkey.startswith(lb):
-                idxkey, *downkeys = flatkey_to_keylist(flatkey, selr=selr)
-                try:
-                    sparse[int(idxkey[1:-1])] = (downkeys, value)
-                except (IndexError, ValueError):
-                    pass
-        if not sparse:  # all keys were discarded
-            if raise_key_error:
-                raise KeyError(branch)
-            else:
-                return default
-        else:  # build real list from the sparse one
-            result = [None] * (max(sparse.keys()) + 1)  # placeholder
-            for i in sparse:
-                downkeys, value = sparse[i]
-                if downkeys:
-                    result[i] = unflatten({sep.join(downkeys): value}, None,
-                                          selr=SELR,
-                                          default=default,
-                                          raise_key_error=False)
+    tree = {}
+    for flatkey, value in flabra.items():
+        keylist = flatkey_to_keylist(flatkey, selr=selr)
+        branch = tree
+        for n, key in enumerate(keylist, start=1 - len(keylist)):
+            try:
+                if n:
+                    branch = branch[key]
                 else:
-                    result[i] = value
-    else:  # build dictionary, not a list
-        result = {}
-        list_ptn = ("(.+[^" + _BS + esc + "])" +
-                    _BS + lb + r"\d+" + _BS + rb + "$")
-        re_list_ptn = re.compile(list_ptn)
-        for flatkey, value in flabra.items():
-            sub_branch = flatkey_to_keylist(flatkey, selr=selr)[0]
-            # If sub-branch is a list element, extract list name
-            ptn_match = re.match(re_list_ptn, sub_branch)
-            if ptn_match:
-                sub_branch = ptn_match.group(1)
-            result[sub_branch] = unflatten(flabra, sub_branch, selr=SELR,
-                                           default=default,
-                                           raise_key_error=False)
-    return result
+                    branch[key] = value
+            except KeyError:
+                branch[key] = {}
+                branch = branch[key]
+    return tree_with_lists(tree)
