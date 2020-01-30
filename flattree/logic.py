@@ -1,19 +1,18 @@
 from collections.abc import Mapping, MutableSequence
-from collections import ChainMap, deque
-import re
+from collections import ChainMap
 
-_BS = '\\'
-SELR = ('.', _BS, '\u23A1', '\u23A6')
-#SELR = ('.', '\\', '[', ']')
+SEP = '.'
+ESC = '\\'
 
 
-def genleaves(*trees, prepend=None, selr=SELR):
+def genleaves(*trees, pre=None, sep=SEP, esc=ESC):
     """Generator used internally to merge trees and decompose them into leaves
 
     Args:
         trees: nested dictionaries to merge
-        prepend: list of key components to prefix resulting flatkey strings
-        selr: tuple of Separator, Escape, Left Bracket, Right Bracket symbols
+        pre: list of key components to prepend to resulting flatkey strings
+        sep (str): symbol to use when joining flat key components
+        esc (str): symbol to escape sep in key components
 
     Yields:
         tuples (flatkey, scalar leaf value)
@@ -22,37 +21,31 @@ def genleaves(*trees, prepend=None, selr=SELR):
     """
     if not trees:
         trees = [None]
-    sep, esc, lb, rb = selr
-    if prepend is None:
-        prepend = []
-        prefix = None
-    else:  # escape separator
-        prefix = sep.join(x.replace(sep, esc + sep) for x in prepend)
+    if pre is None:
+        pre = []
     lead_tree = trees[0]
     if isinstance(lead_tree, MutableSequence):  # a list
         for i, el in enumerate(lead_tree):
-            yield from genleaves(el,
-                                 prepend=prepend + [lb + str(i) + rb],
-                                 selr=selr)
+            yield from genleaves(el, pre=pre + [str(i)], sep=sep, esc=esc)
     elif not isinstance(lead_tree, Mapping):  # not a dictionary, assume scalar
-        yield prefix, lead_tree
+        yield keylist_to_flatkey(pre, sep=sep, esc=esc), lead_tree
     else:
         realtrees = [tree for tree in trees if isinstance(tree, Mapping)]
         for lead in ChainMap(*realtrees):
             subtrees = [tree[lead] for tree in realtrees if lead in tree]
-            yield from genleaves(*subtrees, prepend=prepend + [lead], selr=selr)
+            yield from genleaves(*subtrees, pre=pre + [lead], sep=sep, esc=esc)
 
 
-def flatkey_to_keylist(flatkey, selr=SELR):
+def flatkey_to_keylist(flatkey, sep=SEP, esc=ESC):
     """Converts flatkey to a list of key components, extracts list indices
 
-    Components that look like '[1000]' where a number is found between
-        the Left Bracket and the Right Bracket are converted to integers,
-        int("1000") in this example.
+    Components that look like integers, e.g. '1000' get converted to integers,
+        int('1000') in this example.
 
     Args:
         flatkey (str): flatkey string
-        selr: tuple of Separator, Escape, Left Bracket, Right Bracket symbols
+        sep (str): symbol to use when joining flat key components
+        esc (str): symbol to escape sep in key components
 
     Returns:
         list: key components, int if
@@ -60,35 +53,31 @@ def flatkey_to_keylist(flatkey, selr=SELR):
     """
     if flatkey is None:
         return []
-    sep, esc, lb, rb = selr
     if not sep:
         return [flatkey]
-    flatk = flatkey
     if esc:
-        flatk = flatk.replace('\r', '')
-        flatk = flatk.replace(esc + sep, '\r')
-    keylist = flatk.split(sep)
+        flatkey = flatkey.replace('\r', '')
+        flatkey = flatkey.replace(esc + sep, '\r')
     result = []
-    for key in keylist:
+    for key in flatkey.split(sep):
         if esc:
             key = key.replace('\r', sep)
-        if key.startswith(lb) and key.endswith(rb):
-            try:
-                key = int(key[len(lb):-len(rb)])
-            except (IndexError, ValueError):
-                pass
-        result.append(key)
+        try:
+            result.append(int(key))
+        except ValueError:
+            result.append(key)
     return result
 
 
-def keylist_to_flatkey(keylist, selr=SELR):
+def keylist_to_flatkey(keylist, sep=SEP, esc=ESC):
     """Converts list of key components to a flatkey string
 
     Integer key components are considered list indices and get converted.
 
     Args:
         keylist (list): list of key components
-        selr: tuple of Separator, Escape, Left Bracket, Right Bracket symbols
+        sep (str): symbol to use when joining flat key components
+        esc (str): symbol to escape sep in key components
 
     Returns:
         str: flatkey string
@@ -96,36 +85,21 @@ def keylist_to_flatkey(keylist, selr=SELR):
     """
     if keylist is None:
         return None
-    sep, esc, lb, rb = selr
-    keylist = [lb + str(k) + rb if isinstance(k, int) else k for k in keylist]
     if esc and sep:
         esep = esc + sep
         keylist = [k.replace(sep, esep) for k in keylist if isinstance(k, str)]
-    return sep.join(keylist) if keylist else None
+    return sep.join(str(k) for k in keylist) if keylist else None
 
 
-def tree_with_lists(tree):
-    if not isinstance(tree, Mapping):
-        return tree
-    sparse = {k: v for k, v in tree.items() if isinstance(k, int)}
-    if sparse:
-        result = [None] * (max(sparse.keys()) + 1)
-        for k in sparse:
-            result[k] = sparse[k]
-    else:
-        result = {k:tree_with_lists(tree[k]) for k in tree}
-    return result
-
-
-def unflatten(flatdata, top=None, selr=SELR,
+def unflatten(flatdata, root=None, sep=SEP, esc=ESC,
               default=None, raise_key_error=False):
     """Restores nested dictionaries from a flat tree starting with a branch.
 
     Args:
         flatdata (dict): dictionary of values indexed by flatkeys
-        top: list of key components that constitute a branch to unflatten
-            (None for the whole tree)
-        selr (tuple): Separator, Escape, Left Bracket, Right Bracket symbols
+        root: branch to restore (None for the whole tree)
+        sep (str): symbol to use when joining flat key components
+        esc (str): symbol to escape sep in key components
         default: default value
             Returned in case no branch is found and raise_key_error is False.
         raise_key_error (bool): if True, raise exception rather than
@@ -136,27 +110,25 @@ def unflatten(flatdata, top=None, selr=SELR,
 
     """
     # First check if we can hit the leaf
-    topfk = keylist_to_flatkey(top, selr=selr)
-    if topfk in flatdata:
-        return flatdata[topfk]
+    if root in flatdata:
+        return flatdata[root]
     # flabra: flat branch, a flat subtree of a flat tree, let's build it
-    sep, esc, lb, rb = selr
-    if topfk is None:
+    if root is None:
         flabra = flatdata  # the whole tree
     else:
-        flabra = {key[len(topfk + sep):]: value
+        flabra = {key[len(root + sep):]: value
                   for key, value in flatdata.items()
-                  if key.startswith(topfk + sep)}
+                  if key.startswith(root + sep)}
     # Check if flat branch is not empty, otherwise return default of raise error
     if not flabra:
         if raise_key_error:
-            raise KeyError(topfk)
+            raise KeyError(root)
         else:
             return default
     # Now build a tree
     tree = {}
     for flatkey, value in flabra.items():
-        keylist = flatkey_to_keylist(flatkey, selr=selr)
+        keylist = flatkey_to_keylist(flatkey, sep=sep, esc=esc)
         branch = tree
         for n, key in enumerate(keylist, start=1 - len(keylist)):
             try:
@@ -167,4 +139,29 @@ def unflatten(flatdata, top=None, selr=SELR,
             except KeyError:
                 branch[key] = {}
                 branch = branch[key]
-    return tree_with_lists(tree)
+    return tree
+
+
+def desparse(tree):
+    """Converts branch(es) with integer keys into lists within a dictionary.
+
+    Dictionary with (all) integer keys acts as a sparse list with only non-void
+        values actually stored. This function would convert sparse list into
+        the regular one with void values represented with None.
+
+    Args:
+        tree: dictionary
+
+    Returns:
+        dict or list
+
+    """
+    if not isinstance(tree, Mapping):
+        return tree
+    try:
+        result = [None] * (max(tree.keys()) + 1)  # placeholder list
+        for k in tree:
+            result[k] = desparse(tree[k])
+    except (TypeError, IndexError):  # some key was not numeric or incorrect
+        result = {k:desparse(tree[k]) for k in tree}
+    return result
