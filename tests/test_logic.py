@@ -1,5 +1,12 @@
-import pytest
+from flattree.logic import flatkey_to_keylist, keylist_to_flatkey
 from flattree.logic import genleaves, unflatten, desparse
+
+
+def test_flatkey_keylist():
+    for fk in (None, 0, '', ' ', '_', '$', 'one_two_three'):
+        kl = flatkey_to_keylist(fk, sep='_', esc='$')
+        refk = keylist_to_flatkey(kl, sep='_', esc='$')
+        assert refk == str(fk) if fk is not None else refk is None
 
 
 def test_flattening_sequence_01(t0, t1):
@@ -19,6 +26,7 @@ def test_flattening_sequence_01(t0, t1):
     dt01F = desparse(t01, reindex=False)
     assert len(dt01F['menu']['items']) == 13
     assert dt01T['_$_'] == t1['_$_']
+
 
 def test_flattening_sequence_10(t0, t1):
     ft10 = dict(genleaves(t1, t0, sep='_', esc='$', idxbase=10))

@@ -3,40 +3,26 @@ from collections import ChainMap
 from . import SEP, ESC
 
 
-def genleaves(*trees, pre=None, sep=SEP, esc=ESC, idxbase=0):
-    """Generator used internally to merge trees and decompose them into leaves
+def keylist_to_flatkey(keylist, sep=SEP, esc=ESC):
+    """Converts list of key components to a flatkey string
+
+    Integer key components are considered list indices and get converted.
 
     Args:
-        trees: nested dictionaries to merge
-        pre: list of key components to prepend to resulting flatkey strings
+        keylist (list): list of key components
         sep (str): symbol to use when joining flat key components
         esc (str): symbol to escape sep in key components
-        idxbase (int): number at which list indices would start
 
-    Yields:
-        tuples (flatkey, scalar leaf value)
-        Example: ('my.branch.x', 0)
+    Returns:
+        str: flatkey string
 
     """
-    if not trees:
-        trees = [None]
-    if pre is None:
-        pre = []
-    lead_tree = trees[0]
-    if isinstance(lead_tree, MutableSequence) and lead_tree:  # non-empty list
-        for i, el in enumerate(lead_tree):
-            yield from genleaves(el,
-                                 pre=pre + [str(idxbase + i)],
-                                 sep=sep, esc=esc, idxbase=idxbase)
-    elif not (isinstance(lead_tree, Mapping) and lead_tree):  # no drill-down
-        yield keylist_to_flatkey(pre, sep=sep, esc=esc), lead_tree
-    else:
-        realtrees = [tree for tree in trees if isinstance(tree, Mapping)]
-        for lead in ChainMap(*realtrees):
-            subtrees = [tree[lead] for tree in realtrees if lead in tree]
-            yield from genleaves(*subtrees,
-                                 pre=pre + [lead],
-                                 sep=sep, esc=esc, idxbase=idxbase)
+    if keylist is None:
+        return None
+    if esc and sep:
+        esep = esc + sep
+        keylist = [str(k).replace(sep, esep) for k in keylist]
+    return sep.join(str(k) for k in keylist) if keylist else None
 
 
 def flatkey_to_keylist(flatkey, sep=SEP, esc=ESC):
@@ -56,6 +42,8 @@ def flatkey_to_keylist(flatkey, sep=SEP, esc=ESC):
     """
     if flatkey is None:
         return []
+    else:
+        flatkey = str(flatkey)
     if not sep:
         return [flatkey]
     if esc:
@@ -72,26 +60,51 @@ def flatkey_to_keylist(flatkey, sep=SEP, esc=ESC):
     return result
 
 
-def keylist_to_flatkey(keylist, sep=SEP, esc=ESC):
-    """Converts list of key components to a flatkey string
+def list_merger_list0(*lists):
+    """Picks leading list, discards everything else"""
+    return lists[0]
 
-    Integer key components are considered list indices and get converted.
+
+def genleaves(*trees, pre=None, sep=SEP, esc=ESC,
+              idxbase=0, list_merger=list_merger_list0):
+    """Generator used internally to merge trees and decompose them into leaves
 
     Args:
-        keylist (list): list of key components
+        trees: nested dictionaries to merge
+        pre: list of key components to prepend to resulting flatkey strings
         sep (str): symbol to use when joining flat key components
         esc (str): symbol to escape sep in key components
+        idxbase (int): number at which list indices would start
+        list_merger: function called on trees when leading tree is a list
 
-    Returns:
-        str: flatkey string
+    Yields:
+        tuples (flatkey, scalar leaf value)
+        Example: ('my.branch.x', 0)
 
     """
-    if keylist is None:
-        return None
-    if esc and sep:
-        esep = esc + sep
-        keylist = [k.replace(sep, esep) for k in keylist if isinstance(k, str)]
-    return sep.join(str(k) for k in keylist) if keylist else None
+    if not trees:
+        trees = [None]
+    if pre is None:
+        pre = []
+    lead_tree = trees[0]
+    if isinstance(lead_tree, MutableSequence):  # a list, let's merge
+        merged_lists = list_merger(*trees)
+        if merged_lists:
+            for i, el in enumerate(lead_tree):
+                yield from genleaves(el,
+                                     pre=pre + [str(idxbase + i)],
+                                     sep=sep, esc=esc, idxbase=idxbase)
+        else:
+            yield keylist_to_flatkey(pre, sep=sep, esc=esc), merged_lists
+    elif not (isinstance(lead_tree, Mapping) and lead_tree):  # no drill-down
+        yield keylist_to_flatkey(pre, sep=sep, esc=esc), lead_tree
+    else:
+        realtrees = [tree for tree in trees if isinstance(tree, Mapping)]
+        for lead in ChainMap(*realtrees):
+            subtrees = [tree[lead] for tree in realtrees if lead in tree]
+            yield from genleaves(*subtrees,
+                                 pre=pre + [lead],
+                                 sep=sep, esc=esc, idxbase=idxbase)
 
 
 def unflatten(flatdata, root=None, sep=SEP, esc=ESC,

@@ -23,7 +23,7 @@ class FlatTree(UserDict):
         raise_key_error: if True, raise exception rather than return ``default``
 
     """
-    def __init__(self, *trees, root=None, sep=None, esc=None,
+    def __init__(self, *trees, root=None, sep=SEP, esc=ESC,
                  aliases=None, default=None, raise_key_error=False):
         self._item_logic = False
         super().__init__(self.flatten(*trees, root=root, sep=sep, esc=esc))
@@ -44,13 +44,14 @@ class FlatTree(UserDict):
         return dict(genleaves(*noflat, pre=pre, sep=sep, esc=esc))
 
     def unflatten(self, root=None, default=None, raise_key_error=False):
-        return unflatten(self.data, root=root, sep=self.sep, esc=self.esc,
-                         default=default, raise_key_error=raise_key_error)
+        uf = unflatten(self.data, root=root, sep=self.sep, esc=self.esc,
+                       default=default, raise_key_error=raise_key_error)
+        return desparse(uf, reindex=True)
 
     @property
     def tree(self):
         """Regular tree dynamically recovered from the flat tree."""
-        return desparse(self.unflatten(), reindex=True)
+        return self.unflatten()
 
     @tree.setter
     def tree(self, value):
@@ -82,15 +83,15 @@ class FlatTree(UserDict):
             return self.get(key, self.default)
 
     def get(self, key, default=None):
-        alias_key = self.aliases.get(key, None)
-        value = default
         if key is None:
             value = self.tree
         else:
+            alias_key = self.aliases.get(key, None)
+            value = default
             if alias_key is not None:
-                try_roots = (key, alias_key)
+                try_roots = (str(key), alias_key)
             else:
-                try_roots = (key,)
+                try_roots = (str(key),)
             for root in try_roots:
                 try:
                     value = self.unflatten(root=root, raise_key_error=True)
@@ -100,7 +101,7 @@ class FlatTree(UserDict):
         return value
 
     def __delitem__(self, key):
-        work_key = self.aliases.get(key, key)
+        work_key = self.aliases.get(key, str(key))
         if work_key in self.data:
             super().__delitem__(work_key)
         else:

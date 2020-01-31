@@ -12,8 +12,5 @@ __copyright__ = '2020 Aleksandr Mikhailov'
 SEP = '.'
 ESC = '\\'
 
-#from .core import FlatTreeData, flatten, unflatten
-#from .mainclass import FlatTree
-#__all__ = ['FlatTree']
 from .logic import genleaves, unflatten, desparse
 from .api import FlatTree
