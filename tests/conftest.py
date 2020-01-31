@@ -1,29 +1,29 @@
 import pytest
 
+
 @pytest.fixture()
-def configtree():
+def t0():
     return {
-        'COMMON': {
-            'sequence': {
-                'start': 101
-            }
-        },
-        'development': {
-            'sequence': {
-                'finish': 110
-            }
-        },
-        'production': {
-            'sequence': {
-                'finish': 1000
-            }
+        'menu': {
+            '': 'Top',
+            'items': [
+                {'id': 'new', 'label': 'New...'},
+                {'id': 'Help'},
+                None
+            ]
         }
     }
 
+
 @pytest.fixture()
-def configfallback():
+def t1():
     return {
-        'digits': {
-            'one': 1
-        }
+        'menu': {
+            '': 'Bottom',
+            'items': {
+                '_hide': [1, 3, 7]
+            },
+            'opt': {}
+        },
+        '_$_': [{'': []}, {}]
     }

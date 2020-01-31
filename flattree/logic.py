@@ -1,11 +1,9 @@
 from collections.abc import Mapping, MutableSequence
 from collections import ChainMap
-
-SEP = '.'
-ESC = '\\'
+from . import SEP, ESC
 
 
-def genleaves(*trees, pre=None, sep=SEP, esc=ESC):
+def genleaves(*trees, pre=None, sep=SEP, esc=ESC, idxbase=0):
     """Generator used internally to merge trees and decompose them into leaves
 
     Args:
@@ -13,6 +11,7 @@ def genleaves(*trees, pre=None, sep=SEP, esc=ESC):
         pre: list of key components to prepend to resulting flatkey strings
         sep (str): symbol to use when joining flat key components
         esc (str): symbol to escape sep in key components
+        idxbase (int): number at which list indices would start
 
     Yields:
         tuples (flatkey, scalar leaf value)
@@ -24,16 +23,20 @@ def genleaves(*trees, pre=None, sep=SEP, esc=ESC):
     if pre is None:
         pre = []
     lead_tree = trees[0]
-    if isinstance(lead_tree, MutableSequence):  # a list
+    if isinstance(lead_tree, MutableSequence) and lead_tree:  # non-empty list
         for i, el in enumerate(lead_tree):
-            yield from genleaves(el, pre=pre + [str(i)], sep=sep, esc=esc)
-    elif not isinstance(lead_tree, Mapping):  # not a dictionary, assume scalar
+            yield from genleaves(el,
+                                 pre=pre + [str(idxbase + i)],
+                                 sep=sep, esc=esc, idxbase=idxbase)
+    elif not (isinstance(lead_tree, Mapping) and lead_tree):  # no drill-down
         yield keylist_to_flatkey(pre, sep=sep, esc=esc), lead_tree
     else:
         realtrees = [tree for tree in trees if isinstance(tree, Mapping)]
         for lead in ChainMap(*realtrees):
             subtrees = [tree[lead] for tree in realtrees if lead in tree]
-            yield from genleaves(*subtrees, pre=pre + [lead], sep=sep, esc=esc)
+            yield from genleaves(*subtrees,
+                                 pre=pre + [lead],
+                                 sep=sep, esc=esc, idxbase=idxbase)
 
 
 def flatkey_to_keylist(flatkey, sep=SEP, esc=ESC):
@@ -142,26 +145,38 @@ def unflatten(flatdata, root=None, sep=SEP, esc=ESC,
     return tree
 
 
-def desparse(tree):
+def desparse(tree, na=None, reindex=True):
     """Converts branch(es) with integer keys into lists within a dictionary.
 
     Dictionary with (all) integer keys acts as a sparse list with only non-void
         values actually stored. This function would convert sparse list into
-        the regular one with void values represented with None.
+        the regular one.
+
+    Examples:
+
+        {1: 'one', 3: 'three'} -> ['one', 'three']  # if reindex
+        {1: 'one', 3: 'three'} -> [na, 'one', na, 'three']  # if not reindex
 
     Args:
-        tree: dictionary
+        tree (dict): dictionary
+        na: value to fill in gaps
+        reindex (bool): if True, keep compact but change non-consecutive indices
 
     Returns:
         dict or list
 
     """
-    if not isinstance(tree, Mapping):
+    if not (isinstance(tree, Mapping) and tree):
         return tree
     try:
-        result = [None] * (max(tree.keys()) + 1)  # placeholder list
-        for k in tree:
-            result[k] = desparse(tree[k])
-    except (TypeError, IndexError):  # some key was not numeric or incorrect
-        result = {k:desparse(tree[k]) for k in tree}
+        keys = list(tree.keys())
+        if reindex:
+            keys.sort(key=int)
+            result = [desparse(tree[k], na=na, reindex=reindex) for k in keys]
+        else:
+            result = [na] * (max(keys) + 1)  # placeholder list
+            for k in tree:
+                result[k] = desparse(tree[k], na=na, reindex=reindex)
+    except (TypeError, ValueError, IndexError):  # some key was not numeric
+        result = {k: desparse(tree[k], na=na, reindex=reindex) for k in tree}
     return result

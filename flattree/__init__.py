@@ -9,9 +9,11 @@ __author__ = 'Aleksandr Mikhailov'
 __author_email__ = 'dev@avidclam.com'
 __copyright__ = '2020 Aleksandr Mikhailov'
 
-# Separator, Escape, Left Bracket, Right Bracket symbols
-SELR = ('.', '\\', '\u23A1', '\u23A6')
+SEP = '.'
+ESC = '\\'
 
 #from .core import FlatTreeData, flatten, unflatten
 #from .mainclass import FlatTree
 #__all__ = ['FlatTree']
+from .logic import genleaves, unflatten, desparse
+from .api import FlatTree
