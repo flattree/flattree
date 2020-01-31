@@ -10,6 +10,4 @@ Submodules
 .. toctree::
 
    flattree.api
-   flattree.core
    flattree.logic
-   flattree.mainclass

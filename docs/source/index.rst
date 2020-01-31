@@ -28,7 +28,7 @@ Use FlatTree to merge configurations as needed:
     >>> cfg_dev = {'processor': {'cache': {'format': 'json'}}}
     >>> cfg_prod = {'processor': {'cache': {'format': 'pickle'}}}
     >>> cfg_common = {'processor': {'cache': {'folder_options': ['.cache', 'cache']}},
-                      'logging': None}
+    >>>               'logging': None}
     >>> cfg = FlatTree(cfg_dev, cfg_common)
     >>> cfg['processor.cache.format']
     'json'
