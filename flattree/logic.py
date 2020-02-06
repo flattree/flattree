@@ -134,7 +134,7 @@ def unflatten(flatdata, root=None, sep=SEP, esc=ESC,
     else:
         flabra = {key[len(root + sep):]: value
                   for key, value in flatdata.items()
-                  if key.startswith(root + sep)}
+                  if isinstance(key, str) and key.startswith(root + sep)}
     # Check if flat branch is not empty, otherwise return default of raise error
     if not flabra:
         if raise_key_error:

@@ -105,8 +105,9 @@ class FlatTree(UserDict):
         if work_key in self.data:
             super().__delitem__(work_key)
         else:
-            for datakey in [k for k in self.data]:
-                if datakey.startswith(work_key + self.sep):
+            for datakey in [k for k in self.data]:  # avoid mutating  keys
+                if (isinstance(datakey, str)
+                        and datakey.startswith(work_key + self.sep)):
                     super().__delitem__(datakey)
 
     def __setitem__(self, name, value):
