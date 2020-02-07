@@ -36,3 +36,21 @@ def test_flattening_sequence_10(t0, t1):
     t10 = unflatten(ft10, sep='_', esc='$')
     dt10T = desparse(t10, reindex=True)
     assert dt10T == t1
+
+
+def test_flattening_transparency(t1):
+    # [] in front of a tree blocks
+    # {} in front of a tree is transparent
+    # trailing {} or [] has no effect
+    ft1 = dict(genleaves(t1, [], sep='_', esc='$', idxbase=10))
+    uft1 = desparse(unflatten(ft1, sep='_', esc='$'))
+    assert t1 == uft1
+    ft1 = dict(genleaves(t1, {}, sep='_', esc='$', idxbase=10))
+    uft1 = desparse(unflatten(ft1, sep='_', esc='$'))
+    assert t1 == uft1
+    ft1 = dict(genleaves({}, t1, sep='_', esc='$', idxbase=10))
+    uft1 = desparse(unflatten(ft1, sep='_', esc='$'))
+    assert t1 == uft1
+    ft1 = dict(genleaves([], t1, sep='_', esc='$', idxbase=10))
+    uft1 = desparse(unflatten(ft1, sep='_', esc='$'))
+    assert uft1 == []
