@@ -96,7 +96,7 @@ def genleaves(*trees, pre=None, sep=SEP, esc=ESC,
                                      sep=sep, esc=esc, idxbase=idxbase)
         else:
             yield keylist_to_flatkey(pre, sep=sep, esc=esc), merged_lists
-    elif not (isinstance(lead_tree, Mapping) and lead_tree):  # no drill-down
+    elif not isinstance(lead_tree, Mapping) or trees == ({},):  # no drill-down
         yield keylist_to_flatkey(pre, sep=sep, esc=esc), lead_tree
     else:
         realtrees = [tree for tree in trees if isinstance(tree, Mapping)]
