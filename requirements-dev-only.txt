@@ -1,0 +1,6 @@
+pip
+wheel
+twine
+setuptools
+sphinx
+sphinx-rtd-theme
